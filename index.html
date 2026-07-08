@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKB 노조앱 · 운영비 계산기</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif;color:#1f2733;
+    background:#eef1f6;line-height:1.55;padding:24px 14px 40px;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:920px;margin:0 auto;}
+  h1{font-size:23px;font-weight:800;color:#12294d;letter-spacing:-0.5px;text-align:center;}
+  .sub{text-align:center;color:#6b7684;font-size:13px;margin:6px 0 18px;}
+
+  .presets{display:flex;gap:8px;justify-content:center;margin-bottom:16px;flex-wrap:wrap;}
+  .presets button{border:1px solid #cdd6e2;background:#fff;color:#334;font-size:13px;font-weight:700;
+    padding:8px 16px;border-radius:20px;cursor:pointer;transition:.15s;}
+  .presets button:hover{background:#12294d;color:#fff;border-color:#12294d;}
+
+  /* sticky summary */
+  .summary{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,#1d5fd6,#12294d);
+    color:#fff;border-radius:14px;padding:16px 20px;margin-bottom:18px;box-shadow:0 6px 20px rgba(18,41,77,.3);}
+  .summary .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center;}
+  .summary .b{font-size:11px;opacity:.85;font-weight:600;}
+  .summary .v{font-size:20px;font-weight:800;letter-spacing:-0.5px;margin-top:2px;}
+  .summary .v small{font-size:12px;font-weight:600;opacity:.85;}
+  @media(max-width:640px){.summary .grid{grid-template-columns:repeat(2,1fr);gap:12px;}}
+
+  .item{background:#fff;border:1px solid #e6eaf0;border-radius:12px;padding:12px 14px;margin-bottom:9px;
+    display:flex;align-items:center;gap:12px;transition:.15s;flex-wrap:wrap;}
+  .item.off{background:#f2f3f5;opacity:.6;}
+  .chk{width:24px;height:24px;flex-shrink:0;cursor:pointer;accent-color:#1d5fd6;}
+  .info{flex:1;min-width:150px;}
+  .info .nm{font-weight:800;font-size:14px;}
+  .info .nm .req{font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle;}
+  .req.must{background:#fde3e3;color:#b23030;}
+  .req.rec{background:#fff2cc;color:#9a6a00;}
+  .req.opt{background:#e8ecf2;color:#77828f;}
+  .info .cap{font-size:12px;color:#3f6cc4;margin-top:2px;font-weight:600;}
+  .info .prob{font-size:11.5px;color:#b23030;margin-top:2px;display:none;}
+  .item.off .prob{display:block;}
+  .item.off .cap{display:none;}
+
+  .tiers{display:flex;gap:4px;background:#f0f2f6;border-radius:9px;padding:3px;flex-shrink:0;}
+  .tiers label{font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:7px;cursor:pointer;color:#77828f;}
+  .tiers input{display:none;}
+  .tiers input:checked + span{background:#1d5fd6;color:#fff;padding:5px 9px;border-radius:7px;}
+  .tiers span{padding:5px 9px;border-radius:7px;display:inline-block;}
+  .cost{font-size:15px;font-weight:800;color:#12294d;min-width:82px;text-align:right;font-variant-numeric:tabular-nums;}
+  .item.off .cost{color:#aab2bd;}
+
+  .cat{font-size:12px;font-weight:800;color:#8b95a1;margin:16px 0 7px 4px;letter-spacing:.5px;}
+  .note{background:#fff;border:1px dashed #cdd6e2;border-radius:12px;padding:14px 16px;margin-top:16px;
+    font-size:12.5px;color:#54606f;}
+  .note b{color:#12294d;}
+  .foot{text-align:center;color:#98a2b0;font-size:11.5px;margin-top:18px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SKB 노조앱 · 운영비 계산기</h1>
+  <div class="sub">필요한 것만 <b>체크(✓)</b> · 각 항목 <b>최소/중간/최대</b> 선택 → 합계 실시간 계산 · 개발비 약 500만(웹) 별도</div>
+
+  <div class="presets">
+    <button onclick="preset('min')">알뜰(최소)</button>
+    <button onclick="preset('mid')">권장(중간)</button>
+    <button onclick="preset('max')">여유(최대)</button>
+    <button onclick="preset('reco')">★ 2천명 추천세팅</button>
+  </div>
+  <div class="presets" style="margin-top:-6px">
+    <button onclick="shareLink()" style="border-color:#1d5fd6;color:#1d5fd6">🔗 링크로 저장·공유</button>
+    <button onclick="copySummary()">📋 결과 요약 복사</button>
+    <button onclick="resetAll()">↺ 초기화</button>
+    <span id="saved" style="font-size:12px;color:#1a7a45;align-self:center;font-weight:700"></span>
+  </div>
+
+  <div class="summary">
+    <div class="grid">
+      <div><div class="b">월 운영비 (실비)</div><div class="v" id="s-month">–</div></div>
+      <div><div class="b">연 운영비 (실비)</div><div class="v" id="s-year">–</div></div>
+      <div><div class="b">유지보수</div><div class="v" style="font-size:15px">별도 협의</div></div>
+      <div><div class="b">개발비 (1회)</div><div class="v" style="font-size:15px">약 500만</div></div>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="note">
+    <b>보는 법</b> · 체크 끄면 그 줄이 흐려지고 <b>빼면 생기는 문제</b>가 빨갛게 표시됩니다. 파란 글씨는 선택한 단계의 <b>실제 처리량</b>.<br>
+    <b>2천명 추천</b> · EC2·RDS·S3·CDN·SMS·백업은 중간, 채팅·유지보수는 상황따라. 유지보수를 사장님이 직접 하면 체크 해제 → 발주처엔 실비만.<br>
+    <b>참고</b> · AWS 계산기 예상치(환율 ₩1,520/USD). 실사용량에 따라 변동. 개발비 약 500만원(웹 기준)은 일회성으로 별도.
+  </div>
+  <div class="foot">SKB 노조앱 운영비 계산기 · 2026-07-08 · 바탕화면/SKB_노조앱/문서/</div>
+</div>
+
+<script>
+const ITEMS = [
+  {cat:"필수 인프라", id:"ec2", nm:"EC2 웹서버", req:"must", role:"앱 구동",
+   min:45000, mid:69677, max:90000,
+   cap:{min:"동시접속 ~300명(피크 답답)", mid:"~1,000명 · 폭증 시 자동증설", max:"2,000명 전원 상주 무지연"},
+   prob:"서비스 자체가 안 돌아감", def:true, tier:"mid", lock:true},
+  {cat:"필수 인프라", id:"rds", nm:"RDS 데이터베이스", req:"must", role:"데이터 저장",
+   min:0, mid:184133, max:280000,
+   cap:{min:"서버 내부DB(폭증 시 느림)", mid:"전용DB · 수십만 건 안정", max:"이중화 · 장애 시 무중단"},
+   prob:"0이면 폭증 시 피드 밀림·유실 위험↑", def:true, tier:"mid"},
+  {cat:"필수 인프라", id:"dom", nm:"도메인", req:"must", role:"접속 주소",
+   min:2000, mid:2000, max:3000,
+   cap:{min:".or.kr류 저가", mid:"표준", max:".com 등"},
+   prob:"서비스 접속 주소가 없음", def:true, tier:"mid"},
+
+  {cat:"안정성 (권장)", id:"lb", nm:"로드밸런서(ALB)", req:"rec", role:"부하 분산",
+   min:0, mid:27406, max:30000,
+   cap:{min:"없음(서버1대, 죽으면 전체다운)", mid:"여러 대 분산 · 무중단", max:"고트래픽 분산"},
+   prob:"2,000명 폭증 시 다운·느림", def:true, tier:"mid"},
+  {cat:"안정성 (권장)", id:"mon", nm:"모니터링", req:"rec", role:"장애 감지",
+   min:0, mid:10000, max:30000,
+   cap:{min:"없음(유저 신고로 인지)", mid:"다운 시 즉시 알림", max:"상세 로그·원인 추적"},
+   prob:"장애를 늦게 발견(오래 멈춤)", def:true, tier:"mid"},
+  {cat:"안정성 (권장)", id:"bak", nm:"백업", req:"rec", role:"데이터 보호",
+   min:5000, mid:10000, max:20000,
+   cap:{min:"일1회(최대 하루치 유실)", mid:"일1회+7일 보관", max:"다회·시점 복구"},
+   prob:"데이터 유실 시 복구 불가", def:true, tier:"mid"},
+
+  {cat:"기능 연동 (선택)", id:"s3", nm:"S3 저장소", req:"opt", role:"사진·파일 첨부",
+   min:0, mid:3800, max:15000,
+   cap:{min:"첨부 불가", mid:"사진 ~5만 장(100GB)", max:"20만 장+동영상(400GB)"},
+   prob:"사진/파일 첨부 기능 없음", def:true, tier:"mid"},
+  {cat:"기능 연동 (선택)", id:"cf", nm:"CloudFront(CDN)", req:"opt", role:"이미지 전송 가속",
+   min:0, mid:54720, max:80000,
+   cap:{min:"서버 직접 전송(느림·비쌈)", mid:"월 300GB(2천명 매일 열람)", max:"월 500GB+(대량 사진·영상)"},
+   prob:"이미지 느림 · 전송비 증가", def:true, tier:"mid"},
+  {cat:"기능 연동 (선택)", id:"sms", nm:"SMS OTP 인증", req:"rec", role:"조합원 본인인증",
+   min:10000, mid:20000, max:50000,
+   cap:{min:"월 문자 ~600건", mid:"월 ~1,300건", max:"월 ~3,300건(총회 전 몰림)"},
+   prob:"사측·비조합원 침투 위험 · 본인확인 약화", def:true, tier:"mid"},
+  {cat:"기능 연동 (선택)", id:"push", nm:"푸시 알림", req:"opt", role:"긴급공지(앱)",
+   min:0, mid:0, max:0,
+   cap:{min:"무료·무제한(앱 필요)", mid:"무료·무제한(앱 필요)", max:"무료·무제한(앱 필요)"},
+   prob:"긴급 푸시 없음(문자·이메일로 대체)", def:true, tier:"mid"},
+  {cat:"기능 연동 (선택)", id:"ses", nm:"이메일(SES)", req:"opt", role:"알림·비번 재설정",
+   min:0, mid:3000, max:5000,
+   cap:{min:"미사용", mid:"월 약 5만 건", max:"월 약 10만 건"},
+   prob:"이메일 알림·비번찾기 제한", def:true, tier:"mid"},
+  {cat:"기능 연동 (선택)", id:"store", nm:"앱스토어(애플)", req:"opt", role:"앱 배포",
+   min:0, mid:11000, max:11000,
+   cap:{min:"앱 없으면 0", mid:"iOS 배포 고정비(연$99)", max:"iOS 배포 고정비(연$99)"},
+   prob:"iOS 앱 스토어 배포 불가", def:true, tier:"mid"},
+  {cat:"기능 연동 (선택)", id:"chat", nm:"채팅 서버증설", req:"opt", role:"실시간 채팅",
+   min:0, mid:50000, max:100000,
+   cap:{min:"미사용", mid:"동시 채팅 ~수백 명", max:"동시 수천 명+이력 저장"},
+   prob:"실시간 채팅 없음(공지·댓글로 대체)", def:false, tier:"mid"},
+
+  {cat:"인건비 (별도 협의 · 합산 제외)", id:"maint", nm:"유지보수 인건비", req:"rec", role:"버그·업데이트·지원", negotiate:true,
+   min:300000, mid:450000, max:600000,
+   cap:{min:"월 몇 시간 · 버그만", mid:"정기 점검+소규모 개선", max:"상시 대응+총회/행사 지원"},
+   prob:"합산 아님 — 계약 시 별도 협의(직접 관리 시 불필요)", def:true, tier:"mid"},
+];
+
+const state = {};
+ITEMS.forEach(it => state[it.id] = {on:it.def, tier:it.tier});
+
+const KEY = 'skb_op_calc';
+function saveState(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+function applyState(obj){
+  if(!obj) return false;
+  ITEMS.forEach(it=>{ if(obj[it.id]){ state[it.id].on=!!obj[it.id].on; state[it.id].tier=obj[it.id].tier||it.tier; } });
+  return true;
+}
+function loadState(){
+  // 1) 링크(해시)에 저장된 값 우선
+  try{
+    const m = location.hash.match(/c=([^&]+)/);
+    if(m){ applyState(JSON.parse(decodeURIComponent(escape(atob(m[1]))))); return; }
+  }catch(e){}
+  // 2) 자동 저장(localStorage)
+  try{ applyState(JSON.parse(localStorage.getItem(KEY))); }catch(e){}
+}
+function flash(msg){ const s=document.getElementById('saved'); s.textContent=msg; setTimeout(()=>s.textContent='',2500); }
+
+function shareLink(){
+  const enc = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+  const url = location.href.split('#')[0] + '#c=' + enc;
+  navigator.clipboard.writeText(url).then(()=>flash('✓ 링크 복사됨 — 붙여넣기 해서 저장·전송하세요'))
+    .catch(()=>prompt('아래 링크를 복사하세요:', url));
+}
+function copySummary(){
+  let real=0, lines=[];
+  ITEMS.forEach(it=>{ const s=state[it.id]; if(!s.on) return; const c=it[s.tier];
+    const lv = {min:'최소',mid:'중간',max:'최대'}[s.tier];
+    if(it.negotiate){ lines.push(`- ${it.nm} [별도 협의] (참고: ${lv} ₩${c.toLocaleString()})`); return; }
+    real+=c;
+    lines.push(`- ${it.nm} [${lv}] ${c===0?'무료':'₩'+c.toLocaleString()}`); });
+  const txt = `[SKB 노조앱 운영비 선택 결과]\n`+lines.join('\n')+
+    `\n\n월 실비: ${(real/10000)}만 · 연 ${Math.round(real/10000*12)}만\n유지보수: 별도 협의 · 개발비 약 500만(별도)`;
+  navigator.clipboard.writeText(txt).then(()=>flash('✓ 요약 복사됨 — 카톡/메모에 붙여넣기'))
+    .catch(()=>prompt('아래를 복사하세요:', txt));
+}
+function resetAll(){ try{localStorage.removeItem(KEY);}catch(e){} ITEMS.forEach(it=>{state[it.id]={on:it.def,tier:it.tier};}); render(); flash('초기화됨'); }
+
+const fmt = n => "₩" + n.toLocaleString('ko-KR');
+const man = n => (n/10000);
+
+function render(){
+  const list = document.getElementById('list');
+  let html = "", lastCat = "";
+  ITEMS.forEach(it => {
+    if(it.cat !== lastCat){ html += `<div class="cat">${it.cat}</div>`; lastCat = it.cat; }
+    const s = state[it.id];
+    const cost = it[s.tier];
+    const reqTxt = {must:"필수",rec:"권장",opt:"선택"}[it.req];
+    html += `
+      <div class="item ${s.on?'':'off'}">
+        <input type="checkbox" class="chk" ${s.on?'checked':''} onchange="toggle('${it.id}')">
+        <div class="info">
+          <div class="nm">${it.nm}<span class="req ${it.req}">${reqTxt}</span></div>
+          <div class="cap">▸ ${it.cap[s.tier]}</div>
+          <div class="prob">✕ ${it.prob}</div>
+        </div>
+        <div class="tiers">
+          ${['min','mid','max'].map(t=>`
+            <label><input type="radio" name="t-${it.id}" ${s.tier===t?'checked':''} onchange="setTier('${it.id}','${t}')">
+            <span>${ {min:'최소',mid:'중간',max:'최대'}[t] }</span></label>`).join('')}
+        </div>
+        <div class="cost">${it.negotiate?'협의':(cost===0?'무료':fmt(cost))}</div>
+      </div>`;
+  });
+  list.innerHTML = html;
+  calc();
+  saveState();
+}
+
+function calc(){
+  let real=0;
+  ITEMS.forEach(it=>{
+    const s=state[it.id];
+    if(!s.on || it.negotiate) return;   // 유지보수(협의)는 합산 제외
+    real += it[s.tier];
+  });
+  document.getElementById('s-month').innerHTML = man(real).toLocaleString('ko-KR')+"<small>만/월</small>";
+  document.getElementById('s-year').innerHTML  = Math.round(man(real)*12).toLocaleString('ko-KR')+"<small>만/년</small>";
+}
+
+function toggle(id){ state[id].on = !state[id].on; render(); }
+function setTier(id,t){ state[id].tier = t; render(); }
+
+loadState();
+
+function preset(kind){
+  ITEMS.forEach(it=>{
+    const s=state[it.id];
+    if(kind==='min'){ s.tier='min'; s.on = (it.req==='must'); if(it.id==='bak'||it.id==='sms') s.on=true; }
+    else if(kind==='mid'){ s.tier='mid'; s.on = it.id!=='chat'; }
+    else if(kind==='max'){ s.tier='max'; s.on=true; }
+    else if(kind==='reco'){ // 2000명 추천
+      s.tier='mid'; s.on = it.id!=='chat';
+    }
+  });
+  render();
+}
+render();
+</script>
+</body>
+</html>
